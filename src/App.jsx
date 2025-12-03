@@ -283,7 +283,7 @@ export default function ProductFindsPage() {
                     </div>
                   )}
 
-                  
+                  <a
                     href={product.link}
                     target="_blank"
                     rel="noopener noreferrer"
