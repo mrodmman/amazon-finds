@@ -112,50 +112,6 @@ export default function ProductFindsPage() {
     setShowAddForm(false);
   };
 
-  const AdminToggle = () => (
-    <button
-      onClick={() => setShowPasswordPrompt(true)}
-      className="fixed bottom-4 right-4 w-12 h-12 bg-gray-200 rounded-full opacity-20 hover:opacity-100 transition-opacity"
-      title="Admin Mode"
-    >
-      <Edit2 size={20} className="mx-auto text-gray-600" />
-    </button>
-  );
-
-  const PasswordPrompt = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">
-        <h3 className="text-xl font-semibold mb-4">Enter Admin Password</h3>
-        <input
-          type="password"
-          value={passwordInput}
-          onChange={(e) => setPasswordInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
-          placeholder="Enter password"
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent mb-4"
-          autoFocus
-        />
-        <div className="flex gap-2">
-          <button
-            onClick={handleAdminLogin}
-            className="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition"
-          >
-            Login
-          </button>
-          <button
-            onClick={() => {
-              setShowPasswordPrompt(false);
-              setPasswordInput('');
-            }}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center">
@@ -321,9 +277,70 @@ export default function ProductFindsPage() {
                           className="bg-purple-600 text-white p-2 rounded-lg hover:bg-purple-700 transition-colors"
                           title="Copy code"
                         >
-                          {copiedCode === product.id ? (
-                            <Check size={18} />
-                          ) : (
-                            <Copy size={18} />
-                          )}
-                        </butto
+                          {copiedCode === product.id ? <Check size={18} /> : <Copy size={18} />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  
+                    href={product.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full bg-gradient-to-r from-yellow-400 to-orange-400 text-gray-900 text-center px-4 py-2 rounded-lg font-semibold hover:from-yellow-500 hover:to-orange-500 transition-all shadow-md"
+                  >
+                    Shop on Amazon →
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {!isAdminMode && !showPasswordPrompt && (
+        <button
+          onClick={() => setShowPasswordPrompt(true)}
+          className="fixed bottom-4 right-4 w-12 h-12 bg-gray-200 rounded-full opacity-20 hover:opacity-100 transition-opacity"
+          title="Admin Mode"
+        >
+          <Edit2 size={20} className="mx-auto text-gray-600" />
+        </button>
+      )}
+
+      {showPasswordPrompt && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+            <h3 className="text-xl font-semibold mb-4">Enter Admin Password</h3>
+            <input
+              type="password"
+              value={passwordInput}
+              onChange={(e) => setPasswordInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
+              placeholder="Enter password"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent mb-4"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleAdminLogin}
+                className="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition"
+              >
+                Login
+              </button>
+              <button
+                onClick={() => {
+                  setShowPasswordPrompt(false);
+                  setPasswordInput('');
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
