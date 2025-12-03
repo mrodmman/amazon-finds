@@ -326,28 +326,4 @@ export default function ProductFindsPage() {
                           ) : (
                             <Copy size={18} />
                           )}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  
-                    href={product.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block w-full bg-gradient-to-r from-yellow-400 to-orange-400 text-gray-900 text-center px-4 py-2 rounded-lg font-semibold hover:from-yellow-500 hover:to-orange-500 transition-all shadow-md"
-                  >
-                    Shop on Amazon →
-                  </a>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {!isAdminMode && !showPasswordPrompt && <AdminToggle />}
-      {showPasswordPrompt && <PasswordPrompt />}
-    </div>
-  );
-}
+                        </butto
