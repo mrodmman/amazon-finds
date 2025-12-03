@@ -22,7 +22,7 @@ export default function ProductFindsPage() {
 
   const loadProducts = async () => {
     try {
-      const response = await fetch('/api/products');
+      const response = await fetch('/products');
       const data = await response.json();
       setProducts(data.products || []);
     } catch (error) {
@@ -34,7 +34,7 @@ export default function ProductFindsPage() {
 
   const saveProducts = async (updatedProducts) => {
     try {
-      const response = await fetch('/api/products', {
+      const response = await fetch('/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ products: updatedProducts })
@@ -87,7 +87,7 @@ export default function ProductFindsPage() {
 
   const handleAdminLogin = async () => {
     try {
-      const response = await fetch('/api/check-password', {
+      const response = await fetch('/check-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: passwordInput })
