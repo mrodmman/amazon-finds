@@ -315,7 +315,7 @@ export default function ProductFindsPage() {
         <div className="max-w-4xl mx-auto px-4 py-8">
           <div className="text-center mb-8">
             <p className="text-gray-600 text-sm">
-              Deals can expire at anytime | As an Amazon Associate I earn from qualifying purchases
+              Deals can expire at anytime | As an Amazon Associate I earn from qualifying purchases at no extra cost to you.
             </p>
             
             {/* Social Links Below Header */}
