@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, Check, Plus, X, Upload, Edit2 } from 'lucide-react';
+import { Copy, Check, Plus, X, Upload, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
 
-// ⬇️ THIS IS THE ONLY CHANGE - Your Render backend URL
 const API_URL = 'https://amazon-finds-api.onrender.com';
 
 export default function ProductFindsPage() {
@@ -12,11 +11,15 @@ export default function ProductFindsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [copiedCode, setCopiedCode] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [expandedSections, setExpandedSections] = useState({});
   const [newProduct, setNewProduct] = useState({
     image: '',
     link: '',
     code: '',
-    title: ''
+    title: '',
+    category: '',
+    regularPrice: '',
+    salePrice: ''
   });
 
   useEffect(() => {
@@ -53,11 +56,33 @@ export default function ProductFindsPage() {
     }
   };
 
+  const calculateDiscount = (regular, sale) => {
+    if (!regular || !sale) return 0;
+    const discount = ((regular - sale) / regular) * 100;
+    return Math.round(discount);
+  };
+
+  const groupedProducts = products.reduce((acc, product) => {
+    const category = product.category || 'Uncategorized';
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(product);
+    return acc;
+  }, {});
+
+  const toggleSection = (category) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  };
+
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 1000000) {
-        alert('Image too large. Please use an image under 1MB.');
+      if (file.size > 500000) {
+        alert('Image too large. Please use an image under 500KB.');
         return;
       }
       const reader = new FileReader();
@@ -69,10 +94,18 @@ export default function ProductFindsPage() {
   };
 
   const handleAddProduct = async () => {
-    if (newProduct.image && newProduct.link) {
+    if (newProduct.image && newProduct.link && newProduct.title) {
       const updatedProducts = [...products, { ...newProduct, id: Date.now() }];
       await saveProducts(updatedProducts);
-      setNewProduct({ image: '', link: '', code: '', title: '' });
+      setNewProduct({ 
+        image: '', 
+        link: '', 
+        code: '', 
+        title: '', 
+        category: '',
+        regularPrice: '',
+        salePrice: ''
+      });
       setShowAddForm(false);
     }
   };
@@ -131,32 +164,34 @@ export default function ProductFindsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
-      <div className="bg-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="bg-white shadow-md border-b border-gray-200">
+        <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="flex justify-between items-center">
-            <div>
+            <div className="text-center flex-1">
               <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
                 ✨ My Amazon Finds
               </h1>
-              <p className="text-gray-600 mt-1">Curated products I love & exclusive promo codes</p>
+              <p className="text-gray-600 mt-1 text-sm">
+                Deals can expire at anytime | As an Amazon Associate I earn from qualifying purchases
+              </p>
             </div>
             {isAdminMode && (
               <button
                 onClick={handleAdminLogout}
                 className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-600 transition"
               >
-                Exit Admin Mode
+                Exit Admin
               </button>
             )}
           </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto px-4 py-8">
         {isAdminMode && (
           <button
             onClick={() => setShowAddForm(!showAddForm)}
-            className="mb-8 bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-full font-medium shadow-lg hover:shadow-xl transition-all transform hover:scale-105 flex items-center gap-2 mx-auto"
+            className="mb-8 bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center gap-2 mx-auto"
           >
             <Plus size={20} />
             Add New Product
@@ -174,15 +209,59 @@ export default function ProductFindsPage() {
             
             <div className="space-y-4">
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Category/Date</label>
+                <input
+                  type="text"
+                  placeholder="e.g., December 3 Deals"
+                  value={newProduct.category}
+                  onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Product Title</label>
                 <input
                   type="text"
-                  placeholder="e.g., Cozy Throw Blanket"
+                  placeholder="e.g., Wireless Headphones"
                   value={newProduct.title}
                   onChange={(e) => setNewProduct({ ...newProduct, title: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Regular Price ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="79.99"
+                    value={newProduct.regularPrice}
+                    onChange={(e) => setNewProduct({ ...newProduct, regularPrice: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Sale Price ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="39.99"
+                    value={newProduct.salePrice}
+                    onChange={(e) => setNewProduct({ ...newProduct, salePrice: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {newProduct.regularPrice && newProduct.salePrice && (
+                <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
+                  <p className="text-green-700 font-semibold">
+                    {calculateDiscount(parseFloat(newProduct.regularPrice), parseFloat(newProduct.salePrice))}% OFF
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Product Image</label>
@@ -227,7 +306,7 @@ export default function ProductFindsPage() {
 
               <button
                 onClick={handleAddProduct}
-                disabled={!newProduct.image || !newProduct.link}
+                disabled={!newProduct.image || !newProduct.link || !newProduct.title}
                 className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Add Product
@@ -236,68 +315,120 @@ export default function ProductFindsPage() {
           </div>
         )}
 
-        {products.length === 0 ? (
+        {Object.keys(groupedProducts).length === 0 ? (
           <div className="text-center py-16">
             <div className="text-6xl mb-4">🛍️</div>
             <p className="text-gray-500 text-lg">
-              {isAdminMode ? 'No products yet. Add your first product find!' : 'Check back soon for amazing finds!'}
+              {isAdminMode ? 'No products yet. Add your first deal!' : 'Check back soon for amazing deals!'}
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {products.map((product) => (
-              <div key={product.id} className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all transform hover:-translate-y-1 group relative">
-                {isAdminMode && (
-                  <button
-                    onClick={() => handleDeleteProduct(product.id)}
-                    className="absolute top-3 right-3 bg-white rounded-full p-2 shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-red-50"
-                  >
-                    <X size={16} className="text-red-500" />
-                  </button>
-                )}
-
-                <a href={product.link} target="_blank" rel="noopener noreferrer" className="block">
-                  <div className="aspect-square overflow-hidden bg-gray-100">
-                    <img
-                      src={product.image}
-                      alt={product.title || "Product"}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    />
+          <div className="space-y-4">
+            {Object.entries(groupedProducts).map(([category, items]) => (
+              <div key={category} className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                <button
+                  onClick={() => toggleSection(category)}
+                  className="w-full px-6 py-5 flex justify-between items-center hover:bg-gray-50 transition"
+                >
+                  <div className="text-center flex-1">
+                    <h2 className="text-xl font-semibold text-gray-800">{category}</h2>
+                    <p className="text-sm text-gray-500 mt-1">Click to open</p>
                   </div>
-                </a>
-
-                <div className="p-4">
-                  {product.title && (
-                    <h3 className="font-semibold text-gray-800 mb-3">{product.title}</h3>
+                  {expandedSections[category] ? (
+                    <ChevronUp className="text-gray-400" size={24} />
+                  ) : (
+                    <ChevronDown className="text-gray-400" size={24} />
                   )}
-                  
-                  {product.code && (
-                    <div className="mb-3">
-                      <p className="text-xs text-gray-500 mb-1">PROMO CODE</p>
-                      <div className="flex items-center gap-2">
-                        <code className="flex-1 bg-gradient-to-r from-pink-50 to-purple-50 px-3 py-2 rounded-lg text-sm font-bold text-purple-600 border border-purple-200">
-                          {product.code}
-                        </code>
-                        <button
-                          onClick={() => handleCopyCode(product.code, product.id)}
-                          className="bg-purple-600 text-white p-2 rounded-lg hover:bg-purple-700 transition-colors"
-                          title="Copy code"
-                        >
-                          {copiedCode === product.id ? <Check size={18} /> : <Copy size={18} />}
-                        </button>
-                      </div>
+                </button>
+
+                {expandedSections[category] && (
+                  <div className="px-6 pb-6 pt-2 bg-gray-50">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {items.map((product) => {
+                        const discount = calculateDiscount(
+                          parseFloat(product.regularPrice), 
+                          parseFloat(product.salePrice)
+                        );
+                        
+                        return (
+                          <div key={product.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition group relative">
+                            {isAdminMode && (
+                              <button
+                                onClick={() => handleDeleteProduct(product.id)}
+                                className="absolute top-2 right-2 bg-red-500 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                              >
+                                <X size={14} className="text-white" />
+                              </button>
+                            )}
+
+                            <div className="p-4">
+                              <div className="flex gap-4">
+                                <a href={product.link} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                                  <img
+                                    src={product.image}
+                                    alt={product.title}
+                                    className="w-32 h-32 object-cover rounded-lg"
+                                  />
+                                </a>
+
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="text-gray-800 font-medium text-sm mb-2 line-clamp-2">
+                                    {product.title}
+                                  </h3>
+
+                                  {discount > 0 && (
+                                    <div className="inline-block bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded mb-2">
+                                      {discount}% OFF
+                                    </div>
+                                  )}
+
+                                  <div className="flex items-baseline gap-2 mb-3">
+                                    {product.salePrice && (
+                                      <span className="text-gray-900 font-bold text-lg">
+                                        ${parseFloat(product.salePrice).toFixed(2)}
+                                      </span>
+                                    )}
+                                    {product.regularPrice && (
+                                      <span className="text-gray-400 line-through text-sm">
+                                        ${parseFloat(product.regularPrice).toFixed(2)}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {product.code ? (
+                                    <button
+                                      onClick={() => handleCopyCode(product.code, product.id)}
+                                      className="w-full bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1"
+                                    >
+                                      {copiedCode === product.id ? (
+                                        <>
+                                          <Check size={14} /> Copied!
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy size={14} /> Code: {product.code}
+                                        </>
+                                      )}
+                                    </button>
+                                  ) : (
+                                    <a
+                                      href={product.link}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="block w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white text-center px-3 py-2 rounded-lg text-xs font-medium transition"
+                                    >
+                                      See Deal →
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
-
-                  <a
-                    href={product.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block w-full bg-gradient-to-r from-yellow-400 to-orange-400 text-gray-900 text-center px-4 py-2 rounded-lg font-semibold hover:from-yellow-500 hover:to-orange-500 transition-all shadow-md"
-                  >
-                    Shop on Amazon →
-                  </a>
-                </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
