@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Copy, Check, Plus, X, Upload, Edit2 } from 'lucide-react';
 
+// ⬇️ THIS IS THE ONLY CHANGE - Your Render backend URL
+const API_URL = 'https://amazon-finds-api.onrender.com';
+
 export default function ProductFindsPage() {
   const [products, setProducts] = useState([]);
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -22,7 +25,7 @@ export default function ProductFindsPage() {
 
   const loadProducts = async () => {
     try {
-      const response = await fetch('/api/products');
+      const response = await fetch(`${API_URL}/api/products`);
       const data = await response.json();
       setProducts(data.products || []);
     } catch (error) {
@@ -34,7 +37,7 @@ export default function ProductFindsPage() {
 
   const saveProducts = async (updatedProducts) => {
     try {
-      const response = await fetch('/api/products', {
+      const response = await fetch(`${API_URL}/api/products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ products: updatedProducts })
@@ -87,7 +90,7 @@ export default function ProductFindsPage() {
 
   const handleAdminLogin = async () => {
     try {
-      const response = await fetch('/api/check-password', {
+      const response = await fetch(`${API_URL}/api/check-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: passwordInput })
