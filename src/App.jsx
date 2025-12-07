@@ -289,7 +289,7 @@ export default function ProductFindsPage() {
           <div className="flex justify-between items-center">
             <button   onClick={() => setCurrentPage('home')}
               className="text-2xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent" >
-              ✨ My Amazon Finds
+              ✨ Girl Logic
             </button>
             <div className="flex items-center gap-6">
               <button onClick={() => setCurrentPage('home')}
@@ -311,9 +311,33 @@ export default function ProductFindsPage() {
       {currentPage === 'about' && (
         <div className="max-w-3xl mx-auto px-4 py-12">
           <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-purple-100">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent mb-6">About My Amazon Finds</h1>
-            {/* ... about page content same as your original ... */}
-            {/* Social links */}
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent mb-6">
+              About Girl Logic
+            </h1>
+            <div className="space-y-4 text-gray-700">
+              <p className="text-lg font-semibold">I find deals. You save money. That's it.</p>
+              <p>I'm not here to waste your time with junk — just real Amazon promo codes, price drops, and deals I actually found cheaper.</p>
+              <p className="font-semibold">No filler. No fluff.</p>
+              <p>💎 I also give gift cards to my favorite commenters sometimes — because why not?</p>
+              <p className="font-semibold">If I post it, it's either:</p>
+              <ul className="space-y-2 ml-6">
+                <li className="flex items-start gap-2">
+                  <span className="text-green-500 font-bold">✓</span>
+                  <span>Way cheaper than normal</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-500 font-bold">✓</span>
+                  <span>Got a promo code</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-500 font-bold">✓</span>
+                  <span>Or it's just too good to not share</span>
+                </li>
+              </ul>
+              <p>I do the digging so you don't have to. You just scroll, click, and save. 🔥</p>
+              <p className="font-semibold">Don't sleep on these — stuff goes fast.</p>
+            </div>
+            {/* Social Links */}
             <div className="mt-8 pt-6 border-t border-gray-200">
               <p className="text-sm text-gray-600 mb-4">Follow me for daily deals:</p>
               <div className="flex gap-4">
@@ -338,13 +362,28 @@ export default function ProductFindsPage() {
           </div>
         </div>
       )}
-
       {/* Disclaimer Page */}
       {currentPage === 'disclaimer' && (
         <div className="max-w-3xl mx-auto px-4 py-12">
           <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-purple-100">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent mb-6">Disclaimer</h1>
-            {/* ... disclaimer content same as your original ... */}
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent mb-6">
+              Disclaimer
+            </h1>
+            <div className="space-y-4 text-gray-700 text-sm">
+              <p className="font-semibold">Important: We may earn commissions for purchases made through links on our site.</p>
+              <p>Product prices and availability are accurate as of the date/time indicated and are subject to change.</p>
+              <p>The price and availability information displayed on Amazon at the time of purchase will apply to your order.</p>
+              <p>Content, discounts, offers, images, prices, and availability may change or be removed at any time.</p>
+              <p>Girl Logic participates in the Amazon Services LLC Associates Program, an affiliate advertising program that allows sites to earn advertising fees by linking to Amazon.com.</p>
+              <p>Neither Amazon nor any store or brand mentioned on this website supports, sponsors, or endorses this website or its content.</p>
+              <p className="font-semibold uppercase">Certain content that appears on this site comes from Amazon Services LLC. This content is provided 'as is' and may be subject to change or removal at any time.</p>
+              <p>Third-party product names, logos, brands, and trademarks are the property of their respective owners and are not affiliated with Girl Logic.</p>
+              <p>These parties do not endorse, sponsor, or support this website, its content, or its services.</p>
+              <p>Girl Logic does not claim to represent the manufacturers, brands, companies, or retailers listed on this site, nor does it own their trademarks, logos, marketing materials, or products.</p>
+              <p>Images are for illustrative purposes only. Girl Logic does not sell products or services.</p>
+              <p>This website is a news platform providing information about various offers found online to the best of our knowledge at the time of publication.</p>
+              <p>Girl Logic does not ship products or samples and does not accept any form of payment.</p>
+            </div>
           </div>
         </div>
       )}
