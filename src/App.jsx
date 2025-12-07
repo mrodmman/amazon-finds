@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, Check, Plus, X, Upload, Edit2, ChevronDown, ChevronUp, Instagram, Mail, Facebook, Twitter, FileSpreadsheet, Trash2, FolderPlus } from 'lucide-react';
+import { Copy, Check, Plus, X, Upload, Edit2, ChevronDown, Instagram, Mail, Facebook, Twitter, FileSpreadsheet, Trash2 } from 'lucide-react';
 
 const API_URL = 'https://amazon-finds-api.onrender.com';
 
@@ -9,10 +9,13 @@ export default function ProductFindsPage() {
   const [passwordInput, setPasswordInput] = useState('');
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showCsvUpload, setShowCsvUpload] = useState(false);
+
   const [copiedCode, setCopiedCode] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expandedSections, setExpandedSections] = useState({});
   const [currentPage, setCurrentPage] = useState('home');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [newProduct, setNewProduct] = useState({
     image: '',
     link: '',
@@ -22,10 +25,11 @@ export default function ProductFindsPage() {
     regularPrice: '',
     salePrice: ''
   });
-  const [csvData, setCsvData] = useState('');
+
+  // CSV Upload states
+  const [csvText, setCsvText] = useState('');
   const [csvImageUrls, setCsvImageUrls] = useState(['']);
-  const [showCsvUpload, setShowCsvUpload] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [parsedCSVProducts, setParsedCSVProducts] = useState([]);
 
   useEffect(() => {
     loadProducts();
@@ -67,20 +71,12 @@ export default function ProductFindsPage() {
 
   const groupedProducts = products.reduce((acc, product) => {
     const category = product.category || 'Uncategorized';
-    if (!acc[category]) {
-      acc[category] = [];
-    }
+    if (!acc[category]) acc[category] = [];
     acc[category].push(product);
     return acc;
   }, {});
 
-  const toggleSection = (category) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [category]: !prev[category]
-    }));
-  };
-
+  // ----- Single Product Functions -----
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -116,26 +112,123 @@ export default function ProductFindsPage() {
   };
 
   const handleAddProduct = async () => {
-    if (newProduct.image && newProduct.link && newProduct.title) {
-      const category = selectedCategory || newProduct.category;
-      const updatedProducts = [...products, { 
-        ...newProduct, 
-        category: category,
-        id: Date.now() 
-      }];
+    if (newProduct.image && newProduct.link && newProduct.title && (selectedCategory || newProduct.category)) {
+      const category = selectedCategory === 'new' ? newProduct.category : selectedCategory;
+      const updatedProducts = [...products, { ...newProduct, category, id: Date.now() }];
       await saveProducts(updatedProducts);
-      setNewProduct({ 
-        image: '', 
-        link: '', 
-        code: '', 
-        title: '', 
-        category: '',
-        regularPrice: '',
-        salePrice: ''
+      setNewProduct({
+        image: '', link: '', code: '', title: '', category: '', regularPrice: '', salePrice: ''
       });
       setSelectedCategory('');
       setShowAddForm(false);
     }
+  };
+
+  // ----- CSV Bulk Import Functions -----
+  const handleCsvFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setCsvText(event.target.result);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleCsvTextPaste = (e) => {
+    setCsvText(e.target.value);
+  };
+
+  // CSV Parsing & Mapping
+  useEffect(() => {
+    if (!csvText) {
+      setParsedCSVProducts([]);
+      setCsvImageUrls(['']);
+      return;
+    }
+    const lines = csvText.trim().split('\n');
+    if (lines.length < 2) return;
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    // Get indices for fields
+    const idx = {
+      title: headers.findIndex(h => h.includes('title')),
+      link: headers.findIndex(h => h.includes('link')),
+      code: headers.findIndex(h => h.includes('code')),
+      regularPrice: headers.findIndex(h => h.includes('regularprice') || h.includes('original')),
+      salePrice: headers.findIndex(h => h.includes('saleprice') || h.includes('current')),
+    };
+    const products = [];
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim());
+      if (!values[idx.title] || !values[idx.link]) continue;
+      products.push({
+        id: Date.now() + i,
+        title: values[idx.title] || '',
+        link: values[idx.link] || '',
+        code: idx.code >= 0 ? (values[idx.code] || '') : '',
+        regularPrice: idx.regularPrice >= 0 ? (values[idx.regularPrice] || '') : '',
+        salePrice: idx.salePrice >= 0 ? (values[idx.salePrice] || '') : '',
+        category: selectedCategory === 'new' ? newProduct.category : selectedCategory,
+        image: csvImageUrls[i - 1] || ''
+      });
+    }
+    setParsedCSVProducts(products);
+    // Match image inputs to rows
+    setCsvImageUrls(Array(products.length).fill('').map((_,i) => csvImageUrls[i]||''));
+  }, [csvText, selectedCategory, newProduct.category/*, csvImageUrls*/]); // not csvImageUrls to avoid infinite loop.
+
+  // Image for CSV product row
+  const handleCsvImagePaste = (index, e) => {
+    const items = e.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const file = items[i].getAsFile();
+        if (file.size > 500000) {
+          alert('Image too large. Please use an image under 500KB.');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const urls = [...csvImageUrls];
+          urls[index] = reader.result;
+          setCsvImageUrls(urls);
+        };
+        reader.readAsDataURL(file);
+        break;
+      }
+    }
+  };
+  const handleCsvImageUrlChange = (index, value) => {
+    const urls = [...csvImageUrls];
+    urls[index] = value;
+    setCsvImageUrls(urls);
+  };
+
+  // CSV Import
+  const handleImportCSV = async () => {
+    if (parsedCSVProducts.length === 0) {
+      alert('No valid products found in CSV. Please check your format.');
+      return;
+    }
+    // Add image urls before upload
+    const updatedProducts = [...products, ...parsedCSVProducts.map((p, i) => ({ ...p, image: csvImageUrls[i] || '' }))];
+    await saveProducts(updatedProducts);
+    setCsvText('');
+    setParsedCSVProducts([]);
+    setCsvImageUrls(['']);
+    setSelectedCategory('');
+    setNewProduct({ image: '', link: '', code: '', title: '', category: '', regularPrice: '', salePrice: '' });
+    setShowCsvUpload(false);
+    alert(`Imported ${parsedCSVProducts.length} products!`);
+  };
+
+  // ----------- Other Handlers -----------
+  const toggleSection = (category) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
   };
 
   const handleCopyCode = (code, id) => {
@@ -143,7 +236,6 @@ export default function ProductFindsPage() {
     setCopiedCode(id);
     setTimeout(() => setCopiedCode(null), 2000);
   };
-
   const handleDeleteProduct = async (id) => {
     const updatedProducts = products.filter(p => p.id !== id);
     await saveProducts(updatedProducts);
@@ -157,14 +249,11 @@ export default function ProductFindsPage() {
         body: JSON.stringify({ password: passwordInput })
       });
       const data = await response.json();
-      
       if (data.valid) {
         setIsAdminMode(true);
         setShowPasswordPrompt(false);
         setPasswordInput('');
-        if (data.firstTime) {
-          alert('Admin password set! Remember this password for future logins.');
-        }
+        if (data.firstTime) alert('Admin password set! Remember this password for future logins.');
       } else {
         alert('Incorrect password!');
       }
@@ -180,126 +269,7 @@ export default function ProductFindsPage() {
     setShowCsvUpload(false);
   };
 
-  const handleCsvUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setCsvData(event.target.result);
-      };
-      reader.readAsText(file);
-    }
-  };
-
-  const parseCSV = (csvText) => {
-    const lines = csvText.split('\n');
-    const headers = lines[0].split(',').map(h => h.trim());
-    
-    // Find column indices
-    const titleIndex = headers.findIndex(h => h.toLowerCase().includes('title'));
-    const linkIndex = headers.findIndex(h => h.toLowerCase().includes('link') || h.toLowerCase().includes('url'));
-    const codeIndex = headers.findIndex(h => h.toLowerCase().includes('code') || h.toLowerCase().includes('promo'));
-    const regularPriceIndex = headers.findIndex(h => h.toLowerCase().includes('regular') || h.toLowerCase().includes('original'));
-    const salePriceIndex = headers.findIndex(h => h.toLowerCase().includes('sale') || h.toLowerCase().includes('current'));
-    
-    const products = [];
-    
-    for (let i = 1; i < lines.length; i++) {
-      if (lines[i].trim() === '') continue;
-      
-      const values = lines[i].split(',').map(v => v.trim());
-      if (values.length < Math.max(titleIndex, linkIndex, regularPriceIndex, salePriceIndex) + 1) continue;
-      
-      const product = {
-        id: Date.now() + i,
-        title: values[titleIndex] || '',
-        link: values[linkIndex] || '',
-        code: values[codeIndex] || '',
-        regularPrice: values[regularPriceIndex] || '',
-        salePrice: values[salePriceIndex] || '',
-        category: selectedCategory || newProduct.category || 'New Deals',
-        image: csvImageUrls[i - 1] || '' // Match image URL with CSV row
-      };
-      
-      products.push(product);
-    }
-    
-    return products;
-  };
-
-  const handleImportCSV = async () => {
-    if (!csvData) {
-      alert('Please paste or upload CSV data first');
-      return;
-    }
-    
-    const importedProducts = parseCSV(csvData);
-    
-    // Filter out products without required fields
-    const validProducts = importedProducts.filter(p => p.title && p.link);
-    
-    if (validProducts.length === 0) {
-      alert('No valid products found in CSV. Please check your format.');
-      return;
-    }
-    
-    const updatedProducts = [...products, ...validProducts];
-    await saveProducts(updatedProducts);
-    
-    setCsvData('');
-    setCsvImageUrls(['']);
-    setShowCsvUpload(false);
-    setSelectedCategory('');
-    setNewProduct({
-      image: '',
-      link: '',
-      code: '',
-      title: '',
-      category: '',
-      regularPrice: '',
-      salePrice: ''
-    });
-    
-    alert(`Successfully imported ${validProducts.length} products!`);
-  };
-
-  const addImageUrlField = () => {
-    setCsvImageUrls([...csvImageUrls, '']);
-  };
-
-  const removeImageUrlField = (index) => {
-    const newUrls = [...csvImageUrls];
-    newUrls.splice(index, 1);
-    setCsvImageUrls(newUrls);
-  };
-
-  const updateImageUrl = (index, value) => {
-    const newUrls = [...csvImageUrls];
-    newUrls[index] = value;
-    setCsvImageUrls(newUrls);
-  };
-
-  const handleImagePasteCSV = (index, e) => {
-    const items = e.clipboardData.items;
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1) {
-        const file = items[i].getAsFile();
-        if (file.size > 500000) {
-          alert('Image too large. Please use an image under 500KB.');
-          return;
-        }
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const newUrls = [...csvImageUrls];
-          newUrls[index] = reader.result;
-          setCsvImageUrls(newUrls);
-        };
-        reader.readAsDataURL(file);
-        break;
-      }
-    }
-  };
-
+  //---- Render -----
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center">
@@ -313,51 +283,71 @@ export default function ProductFindsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
-      {/* Navigation - Same as before */}
+      {/* Navigation */}
       <div className="bg-white shadow-md border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <button 
-              onClick={() => setCurrentPage('home')}
-              className="text-2xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent"
-            >
+            <button   onClick={() => setCurrentPage('home')}
+              className="text-2xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent" >
               ✨ My Amazon Finds
             </button>
-            
             <div className="flex items-center gap-6">
-              <button 
-                onClick={() => setCurrentPage('home')}
-                className={`text-sm font-medium transition ${currentPage === 'home' ? 'text-purple-600' : 'text-gray-600 hover:text-purple-600'}`}
-              >
-                Home
-              </button>
-              <button 
-                onClick={() => setCurrentPage('about')}
-                className={`text-sm font-medium transition ${currentPage === 'about' ? 'text-purple-600' : 'text-gray-600 hover:text-purple-600'}`}
-              >
-                About
-              </button>
-              <button 
-                onClick={() => setCurrentPage('disclaimer')}
-                className={`text-sm font-medium transition ${currentPage === 'disclaimer' ? 'text-purple-600' : 'text-gray-600 hover:text-purple-600'}`}
-              >
-                Disclaimer
-              </button>
+              <button onClick={() => setCurrentPage('home')}
+                className={`text-sm font-medium transition ${currentPage === 'home' ? 'text-purple-600' : 'text-gray-600 hover:text-purple-600'}`}>Home</button>
+              <button onClick={() => setCurrentPage('about')}
+                className={`text-sm font-medium transition ${currentPage === 'about' ? 'text-purple-600' : 'text-gray-600 hover:text-purple-600'}`}>About</button>
+              <button onClick={() => setCurrentPage('disclaimer')}
+                className={`text-sm font-medium transition ${currentPage === 'disclaimer' ? 'text-purple-600' : 'text-gray-600 hover:text-purple-600'}`}>Disclaimer</button>
               {isAdminMode && (
-                <button
-                  onClick={handleAdminLogout}
-                  className="bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs hover:bg-red-600 transition"
-                >
-                  Exit Admin
-                </button>
+                <button onClick={handleAdminLogout}
+                  className="bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs hover:bg-red-600 transition">Exit Admin</button>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* About Page - Same as before */}
-      {/* Disclaimer Page - Same as before */}
+      {/* About Page */}
+      {currentPage === 'about' && (
+        <div className="max-w-3xl mx-auto px-4 py-12">
+          <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-purple-100">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent mb-6">About My Amazon Finds</h1>
+            {/* ... about page content same as your original ... */}
+            {/* Social links */}
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <p className="text-sm text-gray-600 mb-4">Follow me for daily deals:</p>
+              <div className="flex gap-4">
+                <a href="https://instagram.com" target="_blank" rel="noopener noreferrer"
+                  className="w-10 h-10 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center text-white hover:scale-110 transition">
+                  <Instagram size={20} />
+                </a>
+                <a href="https://twitter.com" target="_blank" rel="noopener noreferrer"
+                  className="w-10 h-10 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center text-white hover:scale-110 transition">
+                  <Twitter size={20} />
+                </a>
+                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer"
+                  className="w-10 h-10 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center text-white hover:scale-110 transition">
+                  <Facebook size={20} />
+                </a>
+                <a href="mailto:hello@example.com"
+                  className="w-10 h-10 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center text-white hover:scale-110 transition">
+                  <Mail size={20} />
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Disclaimer Page */}
+      {currentPage === 'disclaimer' && (
+        <div className="max-w-3xl mx-auto px-4 py-12">
+          <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-purple-100">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent mb-6">Disclaimer</h1>
+            {/* ... disclaimer content same as your original ... */}
+          </div>
+        </div>
+      )}
 
       {/* Home Page - Products */}
       {currentPage === 'home' && (
@@ -366,28 +356,37 @@ export default function ProductFindsPage() {
             <p className="text-gray-600 text-sm">
               Deals can expire at anytime | As an Amazon Associate I earn from qualifying purchases at no extra cost to you.
             </p>
-            
-            {/* Social Links Below Header - Same as before */}
+            {/* Social Links Below Header */}
+            <div className="flex gap-3 justify-center mt-4">
+              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer"
+                 className="w-8 h-8 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center text-white hover:scale-110 transition">
+                <Instagram size={16} />
+              </a>
+              <a href="https://twitter.com" target="_blank" rel="noopener noreferrer"
+                 className="w-8 h-8 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center text-white hover:scale-110 transition">
+                <Twitter size={16} />
+              </a>
+              <a href="https://facebook.com" target="_blank" rel="noopener noreferrer"
+                 className="w-8 h-8 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center text-white hover:scale-110 transition">
+                <Facebook size={16} />
+              </a>
+              <a href="mailto:hello@example.com"
+                 className="w-8 h-8 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center text-white hover:scale-110 transition">
+                <Mail size={16} />
+              </a>
+            </div>
           </div>
-
           {isAdminMode && (
             <div className="flex gap-4 justify-center mb-8 flex-wrap">
               <button
-                onClick={() => {
-                  setShowAddForm(!showAddForm);
-                  setShowCsvUpload(false);
-                }}
+                onClick={() => { setShowAddForm(!showAddForm); setShowCsvUpload(false); }}
                 className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
               >
                 <Plus size={20} />
                 Add Single Product
               </button>
-              
               <button
-                onClick={() => {
-                  setShowCsvUpload(!showCsvUpload);
-                  setShowAddForm(false);
-                }}
+                onClick={() => { setShowCsvUpload(!showCsvUpload); setShowAddForm(false); }}
                 className="bg-gradient-to-r from-green-500 to-teal-600 text-white px-6 py-3 rounded-xl font-medium shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
               >
                 <FileSpreadsheet size={20} />
@@ -400,149 +399,102 @@ export default function ProductFindsPage() {
           {isAdminMode && showCsvUpload && (
             <div className="bg-white rounded-2xl shadow-xl p-6 mb-8 border-2 border-purple-100">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-800">Upload CSV Products</h2>
+                <h2 className="text-xl font-semibold text-gray-800">Bulk Import Products (CSV)</h2>
                 <button onClick={() => setShowCsvUpload(false)} className="text-gray-400 hover:text-gray-600">
                   <X size={24} />
                 </button>
               </div>
-              
-              <div className="space-y-4">
+              <div>
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <h3 className="font-semibold text-blue-800 mb-2">📋 CSV Format Instructions:</h3>
-                  <p className="text-blue-700 text-sm mb-2">Your CSV should have these columns (in any order):</p>
-                  <ul className="text-blue-600 text-sm list-disc pl-5 space-y-1">
-                    <li><code>Title</code> - Product title (required)</li>
-                    <li><code>Link</code> - Amazon product URL (required)</li>
-                    <li><code>RegularPrice</code> - Original price (e.g., 79.99)</li>
-                    <li><code>SalePrice</code> - Current sale price (e.g., 39.99)</li>
-                    <li><code>Code</code> - Promo code (optional)</li>
-                  </ul>
-                  <p className="text-blue-700 text-sm mt-2">Example row: <code>Wireless Headphones,https://amazon.com/headphones,79.99,39.99,SAVE20</code></p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Category/Date Selection
-                    </label>
-                    <select
-                      value={selectedCategory}
-                      onChange={(e) => {
-                        setSelectedCategory(e.target.value);
-                        if (e.target.value !== 'new') {
-                          setNewProduct({ ...newProduct, category: e.target.value });
-                        }
-                      }}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    >
-                      <option value="">Select existing category or create new</option>
-                      <option value="new">-- Create New Category --</option>
-                      {Object.keys(groupedProducts).map(category => (
-                        <option key={category} value={category}>{category}</option>
-                      ))}
-                    </select>
-                    
-                    {selectedCategory === 'new' && (
-                      <input
-                        type="text"
-                        placeholder="Enter new category name (e.g., December 5 Deals)"
-                        value={newProduct.category}
-                        onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                        className="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      />
-                    )}
+                  <b>CSV Format:</b>
+                  <div className="text-blue-700 text-sm mb-2">
+                    <span>Required columns:</span>
+                    <ul className="list-disc pl-5">
+                      <li>Title <b>(required)</b></li>
+                      <li>Link <b>(required)</b></li>
+                      <li>RegularPrice</li>
+                      <li>SalePrice</li>
+                      <li>Code (optional)</li>
+                    </ul>
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Upload CSV File
-                    </label>
-                    <div className="flex items-center gap-4">
-                      <label className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg cursor-pointer hover:bg-gray-200 transition">
-                        <Upload size={20} className="text-gray-600" />
-                        <span className="text-sm font-medium text-gray-700">Choose CSV File</span>
-                        <input
-                          type="file"
-                          accept=".csv"
-                          onChange={handleCsvUpload}
-                          className="hidden"
-                        />
-                      </label>
-                      {csvData && (
-                        <span className="text-green-600 text-sm">✓ CSV loaded ({csvData.split('\n').length - 1} products)</span>
-                      )}
-                    </div>
+                  <div className="font-mono text-xs bg-white p-2 rounded mb-1">
+{`Title,Link,RegularPrice,SalePrice,Code
+Wireless Earbuds,https://amazon.com/earbuds,49.99,29.99,SAVE20`}
                   </div>
                 </div>
-
-                {csvData && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Category/Date Selection</label>
+                  <select
+                    value={selectedCategory}
+                    onChange={e => {
+                      setSelectedCategory(e.target.value);
+                      if (e.target.value !== 'new') setNewProduct({ ...newProduct, category: '' });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-2"
+                  >
+                    <option value="">Select existing category or create new</option>
+                    <option value="new">-- Create New Category --</option>
+                    {Object.keys(groupedProducts).map(category => (
+                      <option key={category} value={category}>{category}</option>
+                    ))}
+                  </select>
+                  {selectedCategory === 'new' && (
+                    <input type="text" placeholder="New category name"
+                      value={newProduct.category}
+                      onChange={e => setNewProduct({ ...newProduct, category: e.target.value })}
+                      className="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg"
+                    />
+                  )}
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Paste CSV Here</label>
+                  <textarea rows={6} value={csvText} onChange={handleCsvTextPaste}
+                    placeholder="Paste CSV text here or upload file below"
+                    className="w-full px-3 py-2 border rounded mb-2"
+                  />
+                  <label className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg cursor-pointer hover:bg-gray-200 transition w-fit mb-2">
+                    <Upload size={20} className="text-gray-600" />
+                    <span className="text-sm font-medium text-gray-700">Or upload CSV file</span>
+                    <input type="file" accept=".csv" onChange={handleCsvFileUpload} className="hidden" />
+                  </label>
+                </div>
+                {!!parsedCSVProducts.length && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Product Images (Paste or enter URLs)
-                    </label>
-                    <p className="text-sm text-gray-500 mb-3">
-                      Add images in the same order as your CSV rows. You can paste images directly into the fields!
-                    </p>
-                    
-                    <div className="space-y-3 max-h-60 overflow-y-auto p-2">
-                      {csvImageUrls.map((url, index) => (
-                        <div key={index} className="flex items-center gap-2">
-                          <div className="flex-1 flex items-center gap-2">
-                            <span className="text-gray-500 text-sm w-6">{index + 1}.</span>
-                            <div 
-                              className="flex-1 px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 focus-within:border-purple-500"
-                              onPaste={(e) => handleImagePasteCSV(index, e)}
-                            >
-                              <input
-                                type="text"
-                                placeholder="Paste image or enter image URL..."
-                                value={url}
-                                onChange={(e) => updateImageUrl(index, e.target.value)}
-                                className="w-full bg-transparent outline-none text-sm"
-                              />
-                            </div>
-                            {url && (
-                              <img src={url} alt="Preview" className="h-10 w-10 object-cover rounded border" />
-                            )}
+                    <label className="block text-sm font-medium mb-1">Product Images (Paste image or enter image URL per row)</label>
+                    <div className="space-y-2 max-h-60 overflow-y-auto p-2">
+                      {parsedCSVProducts.map((_, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-gray-500 text-sm w-6">{i + 1}.</span>
+                          <div
+                            className="flex-1 px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50"
+                            onPaste={e => handleCsvImagePaste(i, e)}
+                          >
+                            <input
+                              type="text"
+                              placeholder="Paste/drag image here or enter URL..."
+                              value={csvImageUrls[i] || ''}
+                              onChange={e => handleCsvImageUrlChange(i, e.target.value)}
+                              className="w-full bg-transparent outline-none text-sm"
+                            />
                           </div>
-                          {index > 0 && (
-                            <button
-                              onClick={() => removeImageUrlField(index)}
-                              className="text-red-500 hover:text-red-700 p-1"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                          {csvImageUrls[i] && (
+                            <img src={csvImageUrls[i]} alt="Preview" className="h-10 w-10 object-cover rounded border" />
                           )}
                         </div>
                       ))}
                     </div>
-                    
-                    <button
-                      onClick={addImageUrlField}
-                      className="mt-2 text-sm text-purple-600 hover:text-purple-800 flex items-center gap-1"
-                    >
-                      <Plus size={14} /> Add another image field
-                    </button>
                   </div>
                 )}
-
                 <div className="flex gap-4 pt-4 border-t border-gray-200">
-                  <button
-                    onClick={handleImportCSV}
-                    disabled={!csvData || !(selectedCategory || newProduct.category)}
-                    className="flex-1 bg-gradient-to-r from-green-500 to-teal-600 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  <button onClick={handleImportCSV}
+                    disabled={!csvText || !(selectedCategory || newProduct.category) || !parsedCSVProducts.length}
+                    className="flex-1 bg-gradient-to-r from-green-500 to-teal-600 text-white px-6 py-3 rounded-lg font-medium shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Import {csvData ? csvData.split('\n').length - 1 : 0} Products
+                    Import {parsedCSVProducts.length} Products
                   </button>
                   <button
-                    onClick={() => {
-                      setCsvData('');
-                      setCsvImageUrls(['']);
-                    }}
-                    className="px-4 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition"
-                  >
-                    Clear
-                  </button>
+                    onClick={() => { setCsvText(''); setParsedCSVProducts([]); setCsvImageUrls(['']); setNewProduct({ ...newProduct, category: '' }); setSelectedCategory(''); }}
+                    className="px-4 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition">Clear</button>
                 </div>
               </div>
             </div>
@@ -557,21 +509,16 @@ export default function ProductFindsPage() {
                   <X size={24} />
                 </button>
               </div>
-              
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Category/Date Selection
-                  </label>
+                  <label className="block text-sm font-medium mb-2">Category/Date</label>
                   <select
                     value={selectedCategory}
-                    onChange={(e) => {
+                    onChange={e => {
                       setSelectedCategory(e.target.value);
-                      if (e.target.value !== 'new') {
-                        setNewProduct({ ...newProduct, category: e.target.value });
-                      }
+                      if (e.target.value !== 'new') setNewProduct({ ...newProduct, category: '' });
                     }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                   >
                     <option value="">Select existing category or create new</option>
                     <option value="new">-- Create New Category --</option>
@@ -579,64 +526,50 @@ export default function ProductFindsPage() {
                       <option key={category} value={category}>{category}</option>
                     ))}
                   </select>
-                  
                   {selectedCategory === 'new' && (
-                    <input
-                      type="text"
-                      placeholder="Enter new category name (e.g., December 5 Deals)"
+                    <input type="text" placeholder="New category name"
                       value={newProduct.category}
-                      onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                      className="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      onChange={e => setNewProduct({ ...newProduct, category: e.target.value })}
+                      className="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg"
                     />
                   )}
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Product Title</label>
-                  <input
-                    type="text"
+                  <label className="block text-sm font-medium mb-2">Product Title</label>
+                  <input type="text"
                     placeholder="e.g., Wireless Headphones"
                     value={newProduct.title}
-                    onChange={(e) => setNewProduct({ ...newProduct, title: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    onChange={e => setNewProduct({ ...newProduct, title: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                   />
                 </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Regular Price ($)</label>
-                    <input
-                      type="number"
-                      step="0.01"
+                    <label className="block text-sm font-medium mb-2">Regular Price ($)</label>
+                    <input type="number" step="0.01"
                       placeholder="79.99"
                       value={newProduct.regularPrice}
-                      onChange={(e) => setNewProduct({ ...newProduct, regularPrice: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      onChange={e => setNewProduct({ ...newProduct, regularPrice: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Sale Price ($)</label>
-                    <input
-                      type="number"
-                      step="0.01"
+                    <label className="block text-sm font-medium mb-2">Sale Price ($)</label>
+                    <input type="number" step="0.01"
                       placeholder="39.99"
                       value={newProduct.salePrice}
-                      onChange={(e) => setNewProduct({ ...newProduct, salePrice: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      onChange={e => setNewProduct({ ...newProduct, salePrice: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                     />
                   </div>
                 </div>
-
                 {newProduct.regularPrice && newProduct.salePrice && (
                   <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
-                    <p className="text-green-700 font-semibold">
-                      {calculateDiscount(parseFloat(newProduct.regularPrice), parseFloat(newProduct.salePrice))}% OFF
-                    </p>
+                    <p className="text-green-700 font-semibold">{calculateDiscount(parseFloat(newProduct.regularPrice), parseFloat(newProduct.salePrice))}% OFF</p>
                   </div>
                 )}
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Product Image</label>
+                  <label className="block text-sm font-medium mb-2">Product Image</label>
                   <div className="flex items-center gap-4">
                     <label className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg cursor-pointer hover:bg-gray-200 transition">
                       <Upload size={20} className="text-gray-600" />
@@ -649,15 +582,11 @@ export default function ProductFindsPage() {
                       />
                     </label>
                     <span className="text-gray-500 text-sm">or</span>
-                    <div 
-                      className="flex-1 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 focus-within:border-purple-500"
-                      onPaste={handleImagePaste}
-                    >
+                    <div className="flex-1 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50" onPaste={handleImagePaste}>
                       <input
-                        type="text"
-                        placeholder="Paste image here or enter URL..."
+                        type="text" placeholder="Paste image here or enter URL..."
                         value={newProduct.image}
-                        onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
+                        onChange={e => setNewProduct({ ...newProduct, image: e.target.value })}
                         className="w-full bg-transparent outline-none text-sm"
                       />
                     </div>
@@ -666,60 +595,37 @@ export default function ProductFindsPage() {
                     )}
                   </div>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Amazon Link</label>
-                  <input
-                    type="url"
-                    placeholder="https://amazon.com/..."
+                  <label className="block text-sm font-medium mb-2">Amazon Link</label>
+                  <input type="url" placeholder="https://amazon.com/..."
                     value={newProduct.link}
-                    onChange={(e) => setNewProduct({ ...newProduct, link: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    onChange={e => setNewProduct({ ...newProduct, link: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Promo Code (Optional)</label>
-                  <input
-                    type="text"
-                    placeholder="SAVE20"
+                  <label className="block text-sm font-medium mb-2">Promo Code (Optional)</label>
+                  <input type="text" placeholder="SAVE20"
                     value={newProduct.code}
-                    onChange={(e) => setNewProduct({ ...newProduct, code: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    onChange={e => setNewProduct({ ...newProduct, code: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                   />
                 </div>
-
                 <div className="flex gap-4 pt-4 border-t border-gray-200">
-                  <button
-                    onClick={handleAddProduct}
+                  <button onClick={handleAddProduct}
                     disabled={!newProduct.image || !newProduct.link || !newProduct.title || !(selectedCategory || newProduct.category)}
-                    className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-lg font-medium shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Add Product
                   </button>
-                  <button
-                    onClick={() => {
-                      setNewProduct({
-                        image: '',
-                        link: '',
-                        code: '',
-                        title: '',
-                        category: '',
-                        regularPrice: '',
-                        salePrice: ''
-                      });
-                      setSelectedCategory('');
-                    }}
-                    className="px-4 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition"
-                  >
-                    Clear
-                  </button>
+                  <button onClick={() => { setNewProduct({ image: '', link: '', code: '', title: '', category: '', regularPrice: '', salePrice: '' }); setSelectedCategory(''); }}
+                    className="px-4 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition">Clear</button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Products Display - Same as before */}
+          {/* Products Display */}
           {Object.keys(groupedProducts).length === 0 ? (
             <div className="text-center py-16">
               <div className="text-6xl mb-4">🛍️</div>
@@ -730,14 +636,147 @@ export default function ProductFindsPage() {
           ) : (
             <div className="space-y-4">
               {Object.entries(groupedProducts).map(([category, items]) => (
-                // ... same as before
+                <div key={category} className="bg-white rounded-2xl shadow-lg border-2 border-purple-100 overflow-hidden">
+                  <button
+                    onClick={() => toggleSection(category)}
+                    className="w-full px-6 py-5 flex justify-between items-center hover:bg-purple-50 transition group"
+                  >
+                    <div className="text-center flex-1">
+                      <h2 className="text-xl font-bold text-gray-800 group-hover:text-purple-600 transition">{category}</h2>
+                      <p className="text-sm text-gray-500 mt-1">Click to open</p>
+                    </div>
+                    <div className={`transform transition-transform ${expandedSections[category] ? 'rotate-180' : ''}`}>
+                      <ChevronDown className="text-purple-500" size={28} />
+                    </div>
+                  </button>
+                  {expandedSections[category] && (
+                    <div className="px-6 pb-6 pt-2 bg-gradient-to-br from-pink-50 to-purple-50">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {items.map((product) => {
+                          const discount = calculateDiscount(
+                            parseFloat(product.regularPrice),
+                            parseFloat(product.salePrice)
+                          );
+                          return (
+                            <div key={product.id} className="bg-white rounded-xl border-2 border-purple-100 overflow-hidden hover:shadow-lg transition group relative">
+                              {isAdminMode && (
+                                <button
+                                  onClick={() => handleDeleteProduct(product.id)}
+                                  className="absolute top-2 right-2 bg-red-500 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                >
+                                  <X size={14} className="text-white" />
+                                </button>
+                              )}
+                              <div className="p-4">
+                                <div className="flex gap-4">
+                                  <a href={product.link} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                                    <img
+                                      src={product.image}
+                                      alt={product.title}
+                                      className="w-32 h-32 object-cover rounded-lg border-2 border-purple-100"
+                                    />
+                                  </a>
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className="text-gray-800 font-medium text-sm mb-2 line-clamp-2">
+                                      {product.title}
+                                    </h3>
+                                    {discount > 0 && (
+                                      <div className="inline-block bg-gradient-to-r from-green-400 to-green-500 text-white text-xs font-bold px-2.5 py-1 rounded-full mb-2">
+                                        {discount}% OFF
+                                      </div>
+                                    )}
+                                    <div className="flex items-baseline gap-2 mb-3">
+                                      {product.salePrice && (
+                                        <span className="text-gray-900 font-bold text-lg">
+                                          ${parseFloat(product.salePrice).toFixed(2)}
+                                        </span>
+                                      )}
+                                      {product.regularPrice && (
+                                        <span className="text-gray-400 line-through text-sm">
+                                          ${parseFloat(product.regularPrice).toFixed(2)}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {product.code ? (
+                                      <button
+                                        onClick={() => handleCopyCode(product.code, product.id)}
+                                        className="w-full bg-gradient-to-r from-purple-100 to-pink-100 hover:from-purple-200 hover:to-pink-200 text-purple-700 px-3 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 border-2 border-purple-200"
+                                      >
+                                        {copiedCode === product.id ? (
+                                          <>
+                                            <Check size={14} /> Copied!
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Copy size={14} /> Code: {product.code}
+                                          </>
+                                        )}
+                                      </button>
+                                    ) : (
+                                      <a
+                                        href={product.link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white text-center px-3 py-2 rounded-lg text-xs font-bold transition shadow-md hover:shadow-lg"
+                                      >
+                                        See Deal →
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}
         </div>
       )}
 
-      {/* Admin Mode Button and Password Prompt - Same as before */}
+      {!isAdminMode && !showPasswordPrompt && (
+        <button
+          onClick={() => setShowPasswordPrompt(true)}
+          className="fixed bottom-4 right-4 w-12 h-12 bg-gray-200 rounded-full opacity-20 hover:opacity-100 transition-opacity"
+          title="Admin Mode"
+        >
+          <Edit2 size={20} className="mx-auto text-gray-600" />
+        </button>
+      )}
+      {showPasswordPrompt && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl border-2 border-purple-200">
+            <h3 className="text-xl font-semibold mb-4">Enter Admin Password</h3>
+            <input
+              type="password"
+              value={passwordInput}
+              onChange={e => setPasswordInput(e.target.value)}
+              onKeyPress={e => e.key === 'Enter' && handleAdminLogin()}
+              placeholder="Enter password"
+              className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent mb-4"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleAdminLogin}
+                className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-pink-600 hover:to-purple-700 transition font-medium"
+              >
+                Login
+              </button>
+              <button
+                onClick={() => { setShowPasswordPrompt(false); setPasswordInput(''); }}
+                className="px-4 py-2 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
